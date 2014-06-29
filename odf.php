@@ -6,7 +6,8 @@
  *
  * odtphp2 - библиотека для генерации openOffice документов по шаблонам
  * 
- * идея и методы класса взяты из библиотеки odtphp от Julien Pauli - Cyril PIERRE de GEYER - Anaska
+ * идея и методы класса взяты из библиотеки odtphp https://github.com/cybermonde/odtphp
+ *   
  * 
  * основные отличия в том что odtphp2 может генерить документы любой сложности и размеров
  * но ресурсов при этом потре*лять будет меньше
@@ -92,6 +93,7 @@ class Odf_meta_file {
     }
     
     public function save(){
+	if($this->add_files_count==0) return;
 	$f = fopen($this->path_to_file,'r');
 	fseek($f,$this->pos_to_end_data_file);
 	$end_data = fread($f,filesize($this->path_to_file));
@@ -131,7 +133,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	return $this->segment_name;
     }
     public function &get_config(){
-	if($this->level==0) return $config;
+	if($this->level==0) return $this->config;
 	return $this->parent_odf->get_config();
     }
     public function &get_odf_meta(){
@@ -154,9 +156,17 @@ class Odf implements /*IteratorAggregate,*/ Countable {
         if (array_key_exists($prop, $this->segments)){
             return $this->segments[$prop];
         } else {
-	    my_var_dump_html2("\$this->children",$this->segments);
+	    //my_var_dump_html2("\$this->children",$this->segments);
 	    //return exception_error_handler(0,$msg,__FILE__."/".__FUNCTION__,__LINE__);
             throw new OdfException('child "' . $prop . '" does not exist');
+        }
+    }
+    public function __call($meth, $args){
+        try {
+            array_unshift($args,$meth);
+            return call_user_func_array(array($this,'setVars'),$args);
+        } catch (SegmentException $e) {
+            throw new OdfException("method $meth nor var $meth exist");
         }
     }
     public function is_hidden(){ return $this->hide; }
@@ -166,21 +176,24 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	
 	$this->hide = 0;
 	$this->use_temp = 0;
-	
+	$this->parsedxml_temp_file_d = 0; //дескриптор временного файла
 	if($level==null){
 	    //$this->segment_name = 'main';
-	    $this->parsedxml_temp_file_path = $this->get_config()->temppath."/content.xml"; //если это главный блок, то для него временных файлов не создаем!
-	    
+
 	    $this->level = 0;
 	    $this->parent_odf = null;
 	    
 	    $this->config = new Odf_config();
+
 	    
 	    $this->config->filename = $filename_or_block_name;
 	    
 	    
 	    $this->_extract_and_read_odf_files();
 	    $this->odf_meta_file = new Odf_meta_file($this->config->temppath);
+	    
+	    $this->parsedxml_temp_file_path = $this->get_config()->temppath."/content.xml"; //если это главный блок, то для него временных файлов не создаем!
+	    
 	    
 	    $this->_clear_user_vars();
 	    $this->xml = $this->_prepare_row_blocks($this->xml);
@@ -419,9 +432,14 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     }
     public function clear_parsedxml(){
 	$this->parsedxml = '';
-	if( $this->use_temp && $this->level > 0 ){
-	    fclose($this->parsedxml_temp_file_d);
-	    unlink($this->parsedxml_temp_file_path);
+	if( /*$this->use_temp &&*/ $this->level > 0 ){
+	    if($this->parsedxml_temp_file_d){
+		fclose($this->parsedxml_temp_file_d);
+		$this->parsedxml_temp_file_d = 0;
+	    }
+	    if(file_exists($this->parsedxml_temp_file_path)){
+		unlink($this->parsedxml_temp_file_path);
+	    }
 	    $this->use_temp = 0;
 	}
     }
@@ -441,8 +459,9 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     }
     
     public function mergeSegment(Odf &$segment){
-        //$segment->merge();
-        /************/
+	
+        $this->merge();
+        /************
 	if (! array_key_exists($segment->getName(), $this->segments)){
             throw new OdfException($segment->getName() . 'cannot be parsed, has it been set yet ?');
         }
@@ -451,7 +470,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	$reg = '@\[!-- BEGIN ' . $string . ' --\](.*)\[!-- END ' . $string . ' --\]@smU';
         $this->parsedxml = preg_replace($reg, $segment->getXmlParsed(), $this->xml);
         
-        /***********/
+        ***********/
 	return $this;
     }
     
@@ -526,7 +545,8 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 			$pos = strpos($xml,$seg->xml);
 			
 			$arr = array('use_temp'=>$is_use_temp,'pos'=>$pos,'name'=>$seg->getName());
-			$this->segments_order[$i] = $arr;
+			
+			$this->segments_order[$i++] = $arr;
 			
 		    }
 		    sort_arr_segments_info($this->segments_order);
@@ -539,12 +559,13 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 		//4. загружаем содержимое дочерних блоков по порядку в текущий временный файл
 		for($i=0;$i<count($this->segments_order);$i++){
 		    $arr = $this->segments_order[$i];
+		    echo "<h2>{$arr['name']}</h2>";
 		    $seg = $this->segments[$arr['name']];
 		    if($arr['use_temp']){
 			$pos = strpos($xml,$seg->xml);
 			$this->parsedxml .= substr($xml,0,$pos); //то что распарсили до этого
 			$this->save();
-			$this->_save_sub_segment($seg);
+			$this->_add_sub_segment($seg);
 			$xml = substr($xml,$pos + strlen($seg->xml));
 		    }else{
 			$pos = strpos($xml,$seg->xml);
@@ -554,6 +575,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 			    $seg->merge();
 			    $seg_parsedxml = $seg->getXmlParsed();
 			}
+			$seg->clear_parsedxml();
 			$this->parsedxml .= $seg_parsedxml;
 			$xml = substr($xml,$pos + strlen($seg->xml));
 		    }
@@ -571,28 +593,32 @@ class Odf implements /*IteratorAggregate,*/ Countable {
         if($hasChildren_with_temp){
 	    $this->save();
 	}
-        return $this->parsedxml;
+        return;
     }
     
 
     protected function _first_save(){
         $this->use_temp = 1;
         $this->parsedxml_temp_file_d = fopen($this->parsedxml_temp_file_path,'w');
-	echo "<code>write open: {$this->parsedxml_temp_file_path}</code>";
     }
     
     public function save(){
 	if( !$this->use_temp ) $this->_first_save();
 	fwrite($this->parsedxml_temp_file_d,$this->parsedxml);
+	echo "<pre><code>write open: {$this->parsedxml_temp_file_path}</code>\n";
+	echo "<code>write data: {$this->parsedxml}</code></pre>";
 	$this->parsedxml = '';
     }
     
     protected function _close_temp(){
-        $this->use_temp = 0;
-        fclose($this->parsedxml_temp_file_d);
+	if($this->use_temp && $this->parsedxml_temp_file_d){
+	    $this->use_temp = 0;
+	    fclose($this->parsedxml_temp_file_d);
+	    $this->parsedxml_temp_file_d = 0;
+	}
     }
     
-    protected function _save_sub_segment(&$seg){
+    protected function _add_sub_segment(&$seg){
 	$this->save();
 	$seg->_close_temp();
 	$f = fopen($seg->parsedxml_temp_file_path,'r');
@@ -606,17 +632,27 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 
     public function saveToDisk($to_file = null){
 	if($this->level!=0) throw new OdfException("Invalid request saveToDisk($to_file) with child block");
-	//if(!$this->parsedxml) $this->merge();
 	
 	//$this->clear_parsedxml_children();
 	
 	$this->get_odf_meta()->save();
 	
 	if(!$this->use_temp){
+	    $xmlparsed = $this->getXmlParsed();
+	    if(!$xmlparsed){
+		$this->merge();
+		$xmlparsed = $this->getXmlParsed();
+	    }
+	    
 	    $xml_file = "{$this->config->temppath}/content.xml";
 	    $fp = fopen($xml_file, 'w');
-	    fwrite($fp, $this->parsedxml);
+	    fwrite($fp, $xmlparsed);
 	    fclose($fp);
+	    
+	}else{
+	    $this->clear_parsedxml_children();
+	    $this->_close_temp();  //закрываем content.xml
+	    clear_temp_files($this->config->temppath);
 	}
 
         $temp_path = $this->config->temppath;
@@ -624,8 +660,27 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	echo "<h3>temp_path: $cmd</h3>";
 	exec( $cmd );
     }
-        
+    
+    public function exportAsAttachedFile(){
+	//temp function fo run examples
+	global $argv;
+	$file = $argv[0];
+	$this->saveToDisk($file.".odt");
+    }   
 
+}
+
+function clear_temp_files($path){
+    if($handler = opendir($path)) { 
+            while (($sub = readdir($handler)) !== FALSE) { 
+                if (substr($sub,0,5) == "temp_" ) { 
+                    if(is_file($path."/".$sub)) { 
+			unlink($path."/".$sub);
+                    }
+                } 
+            } 
+            closedir($handler); 
+    }
 }
 
 function sort_arr_segments_info(&$arr){
