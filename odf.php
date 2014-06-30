@@ -13,7 +13,7 @@
  * но ресурсов при этом потре*лять будет меньше
  *  +код я постарался по возможности упростить и сократить
  *  +все методы из odtphp будут работать и тут.
- *  +добавлена функция save() - для сохранения на диск(а не в опер.памяти) сгенерированных блоков документа
+ *  +добавлена функция save() - для сорнения на диск(а не в опер.памяти) сгенерированных блоков документа
  * 
  * 
  * 
@@ -153,6 +153,8 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	return count($this->segments);
     }
     public function __get($prop){
+	return $this->setSegment($prop);
+        /*************
         if (array_key_exists($prop, $this->segments)){
             return $this->segments[$prop];
         } else {
@@ -160,10 +162,14 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	    //return exception_error_handler(0,$msg,__FILE__."/".__FUNCTION__,__LINE__);
             throw new OdfException('child "' . $prop . '" does not exist');
         }
+	**************/
     }
     public function __call($meth, $args){
         try {
             array_unshift($args,$meth);
+	    //echo "<pre>dump __call {$this->segment_name} :";
+	    //echo var_dump($args);
+	    //echo "</pre>";
             return call_user_func_array(array($this,'setVars'),$args);
         } catch (SegmentException $e) {
             throw new OdfException("method $meth nor var $meth exist");
@@ -214,7 +220,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     
     protected function _analyse_children_segments($xml){
 	//$reg2 = "#<table\:table-row[^>]*>.{1,200}\[!--\sBEGIN\s([\S]*)\s--\](.*)\[!--\sEND\s(\\1)\s--\].*<\/table\:table-row>#Usm";
-	$reg2 = "#\[!--\sBEGIN\s([\S]*)\s--\](.*)\[!--\sEND\s(\\1)\s--\]#Usm";
+	$reg2 = "#\[!-- BEGIN ([\S]*) --\](.*)\[!-- END (\\1) --\]#Usm";
         preg_match_all($reg2, $xml, $matches);
 	
 	//my_var_dump_html2("\$matches",$matches);
@@ -244,7 +250,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	}
 	
 	$cmd = "7z x \"{$file_name}\" -o\"{$temp_path}\"";
-	echo "<h3>run_cmd:".$cmd."</h3>";
+	//echo "<h3>run_cmd:".$cmd."</h3>";
 	exec( $cmd );
         
 	$this->config->temppath = $temp_path;
@@ -369,8 +375,9 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     
     public function setVars($key, $value, $encode = true, $charset = 'ISO-8859'){
         global $ODF2_DELIMITER_LEFT , $ODF2_DELIMITER_RIGHT;
+	$var_name = $ODF2_DELIMITER_LEFT. $key . $ODF2_DELIMITER_RIGHT;
 
-        if (strpos($this->xml, $ODF2_DELIMITER_LEFT. $key . $ODF2_DELIMITER_RIGHT) === false){
+        if (strpos($this->xml, $var_name) === false){
             throw new OdfException("var $key not found in the document");
         }
         $value = $encode ? htmlspecialchars($value) : $value;
@@ -390,8 +397,13 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	//вставляем корректные переводы строк:
 	$value = str_replace("\n", "<text:line-break/>", $value);
 	
-        $this->vars[$ODF2_DELIMITER_LEFT. $key . $ODF2_DELIMITER_RIGHT] = $value;
 	
+        $this->vars[$var_name] = $value;
+	
+	
+	//echo "<pre>dump setVars {$this->segment_name} :";
+	//echo $var_name." = ".$this->vars[$var_name] ;
+	//echo "</pre>";
 	//$this->xml = str_replace(array_keys($this->vars), array_values($this->vars), $this->contentXml);
         
 	return $this;
@@ -508,8 +520,11 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	$xml = $this->_remove_begin_end_delimiter($this->xml);
 	
 	
-	//echo "<pre>dump:";
-	//var_dump($this->xmlParsed );
+	//echo "<pre>\n-----------------------------------------\n";
+	//echo "dump {$this->segment_name} :";
+	//echo "\n".htmlspecialchars($this->xml)."\n";
+	//var_dump($this->vars);
+	//echo "\n===================================\n";
 	//echo "</pre>";
 	
 	
@@ -631,6 +646,8 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     
 
     public function saveToDisk($to_file = null){
+	global $argv;
+	if(!$to_file) $to_file = $argv[0].".out.odt";
 	if($this->level!=0) throw new OdfException("Invalid request saveToDisk($to_file) with child block");
 	
 	//$this->clear_parsedxml_children();
@@ -665,7 +682,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	//temp function fo run examples
 	global $argv;
 	$file = $argv[0];
-	$this->saveToDisk($file.".odt");
+	$this->saveToDisk($file.".out.odt");
     }   
 
 }
