@@ -268,7 +268,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     }
     public function __destruct(){
 	if($this->level==0){
-	    echo "<h3>temp_path:".$this->config->temppath."</h3>";
+	    //echo "<h3>temp_path:".$this->config->temppath."</h3>";
 	    //rrmdir($this->config->temppath);
 	}
     }
@@ -559,7 +559,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 		//4. загружаем содержимое дочерних блоков по порядку в текущий временный файл
 		for($i=0;$i<count($this->segments_order);$i++){
 		    $arr = $this->segments_order[$i];
-		    echo "<h2>{$arr['name']}</h2>";
+		    //echo "<h2>{$arr['name']}</h2>";
 		    $seg = $this->segments[$arr['name']];
 		    if($arr['use_temp']){
 			$pos = strpos($xml,$seg->xml);
@@ -605,8 +605,8 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     public function save(){
 	if( !$this->use_temp ) $this->_first_save();
 	fwrite($this->parsedxml_temp_file_d,$this->parsedxml);
-	echo "<pre><code>write open: {$this->parsedxml_temp_file_path}</code>\n";
-	echo "<code>write data: {$this->parsedxml}</code></pre>";
+	//echo "<pre><code>write open: {$this->parsedxml_temp_file_path}</code>\n";
+	//echo "<code>write data: {$this->parsedxml}</code></pre>";
 	$this->parsedxml = '';
     }
     
@@ -657,7 +657,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 
         $temp_path = $this->config->temppath;
 	$cmd = "7z a -tzip \"{$to_file}\" \"{$temp_path}/*\" -r";
-	echo "<h3>temp_path: $cmd</h3>";
+	//echo "<h3>temp_path: $cmd</h3>";
 	exec( $cmd );
     }
     
