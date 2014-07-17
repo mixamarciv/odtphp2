@@ -129,6 +129,10 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     protected $parsedxml_temp_file_d;
 
     
+    public function get_sub_segments_names(){
+	return array_keys($this->segments);
+    }
+    
     public function getName(){
 	return $this->segment_name;
     }
@@ -154,15 +158,6 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     }
     public function __get($prop){
 	return $this->setSegment($prop);
-        /*************
-        if (array_key_exists($prop, $this->segments)){
-            return $this->segments[$prop];
-        } else {
-	    //my_var_dump_html2("\$this->children",$this->segments);
-	    //return exception_error_handler(0,$msg,__FILE__."/".__FUNCTION__,__LINE__);
-            throw new OdfException('child "' . $prop . '" does not exist');
-        }
-	**************/
     }
     public function __call($meth, $args){
         try {
@@ -378,7 +373,8 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	$var_name = $ODF2_DELIMITER_LEFT. $key . $ODF2_DELIMITER_RIGHT;
 
         if (strpos($this->xml, $var_name) === false){
-            throw new OdfException("var $key not found in the document");
+	    //my_var_dump_html2("\$this->segments",$this->segments);
+            throw new OdfException("var $key not found in the document (segment '".$this->getName()."')");
         }
         $value = $encode ? htmlspecialchars($value) : $value;
         $value = ($charset == 'ISO-8859') ? utf8_encode($value) : $value;
@@ -465,7 +461,8 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 
     public function setSegment($segment_name){
         if (!array_key_exists($segment_name, $this->segments)){
-            throw new OdfException("'$segment_name' segment not found in the document");
+	    my_var_dump_html2("\$this->segments",$this->segments);
+            throw new OdfException("'$segment_name' segment not found in the document (current segment '".$this->getName()."')");
         }
         return $this->segments[$segment_name];
     }
