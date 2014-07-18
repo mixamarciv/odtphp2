@@ -236,8 +236,18 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     
     private function _extract_and_read_odf_files($need_copy=0,$old_cmd=""){
 	$file_name = $this->config->filename;
+	$base_name = basename($file_name);
 	
-	$temp_path = sys_get_temp_dir()."/".date("Ymd_His_").substr(uniqid(),10,3)."_{$file_name}";
+	$temp_path = sys_get_temp_dir()."/odtphp2";
+	if(!file_exists($temp_path)){
+	    mkdir($temp_path);
+	}
+	$temp_path .= "/".date("Ymd-H");
+	if(!file_exists($temp_path)){
+	    mkdir($temp_path);
+	}
+	$temp_path .= "/".date("Ymd_His_").substr(uniqid(),10,3)."_{$base_name}";
+	
 	if($need_copy==1){
 	    $file_name2 = $temp_path.".7z";
 	    copy($file_name,$file_name2);
