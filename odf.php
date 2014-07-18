@@ -406,20 +406,24 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     }
     
 
-    public function setImage($key, $value){
+    public function setImage($key, $value, $width=0, $height=0){
 	global $ODF2_PIXEL_TO_CM;
 	
 	$this->_add_image_file($value);
 	
         $filename = strtok(strrchr($value, '/'), '/.');
         $file = substr(strrchr($value, '/'), 1);
-        $size = @getimagesize($value);
-        if ($size === false){
-            throw new OdfException("Invalid image");
-        }
-        list ($width, $height) = $size;
-        $width  *= $ODF2_PIXEL_TO_CM;
-        $height *= $ODF2_PIXEL_TO_CM;
+	
+	if(!$width && !$height){
+	    $size = @getimagesize($value);
+	    if ($size === false){
+		throw new OdfException("Invalid image");
+	    }
+	    list ($width, $height) = $size;
+	    $width  *= $ODF2_PIXEL_TO_CM;
+	    $height *= $ODF2_PIXEL_TO_CM;
+	}
+	
 	$width   = round($width,3);
 	$height  = round($height,3);
         
