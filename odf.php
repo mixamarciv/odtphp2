@@ -223,7 +223,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	    $name = $matches[1][$i];
 
             if ($name != $this->segment_name){
-		my_var_dump_html2("segment[".$this->segment_name."]",$name);
+		//my_var_dump_html2("segment[".$this->segment_name."]",$name);
                 $this->segments[$name] = new Odf($name, $xml=$matches[0][$i], $this, $this->level+1);
             } else {
                 $this->_analyse_children_segments($matches[2][$i]);
@@ -301,7 +301,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	    
 	    if(!$matches) break;
 	    
-	    my_var_dump_html2("\$matches",$matches);
+	    //my_var_dump_html2("\$matches",$matches);
 
 	    $begin_segment     = $matches[1][0];
 	    $begin_segment_pos = $matches[1][1];
@@ -327,14 +327,14 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	    $subxml = substr($p_sub_contentXml,0,$begin_segment_pos);
 	    $new_pos_begin = strrpos($subxml,$begin_text,0);
 	    if($new_pos_begin===false){
-		my_var_dump_html2("\$subxml len",strlen($subxml));
-		my_var_dump_html2("\$subxml",$subxml);
+		//my_var_dump_html2("\$subxml len",strlen($subxml));
+		//my_var_dump_html2("\$subxml",$subxml);
 		throw new OdfException("begin row not found! for segment \"$begin_segment\" (segment '".$this->getName()."')");
 	    }
 	    
 	    $p_sub_contentXml = substr_replace($p_sub_contentXml,$new_begin_segment,$new_pos_begin,0);
 	    
-	    my_var_dump_html2("new_segments",array($begin_segment,$new_begin_segment,$end_segment,$new_end_segment));
+	    //my_var_dump_html2("new_segments",array($begin_segment,$new_begin_segment,$end_segment,$new_end_segment));
 	    
 	    $next_offset = $new_pos_begin + 1; //hehe
 	}
@@ -466,7 +466,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 
     public function setSegment($segment_name){
         if (!array_key_exists($segment_name, $this->segments)){
-	    my_var_dump_html2("\$this->segments",$this->segments);
+	    //my_var_dump_html2("\$this->segments",$this->segments);
             throw new OdfException("'$segment_name' segment not found in the document (current segment '".$this->getName()."')");
         }
         return $this->segments[$segment_name];
