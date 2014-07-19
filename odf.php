@@ -179,8 +179,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	$this->use_temp = 0;
 	$this->parsedxml_temp_file_d = 0; //дескриптор временного файла
 	if($level==null){
-	    //$this->segment_name = 'main';
-
+            $this->segment_name =  'MAIN';
 	    $this->level = 0;
 	    $this->parent_odf = null;
 	    
@@ -222,7 +221,9 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	
         for ($i = 0, $size = count($matches[0]); $i < $size; $i++){
 	    $name = $matches[1][$i];
+
             if ($name != $this->segment_name){
+		my_var_dump_html2("segment[".$this->segment_name."]",$name);
                 $this->segments[$name] = new Odf($name, $xml=$matches[0][$i], $this, $this->level+1);
             } else {
                 $this->_analyse_children_segments($matches[2][$i]);
@@ -284,69 +285,59 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	}
     }
     
-    //меняем row.blocks на просто blocks 
+    //меняем row.blocks на просто blocks
+    //и перемещаем начало блока перед ближайшей '<table:table-row' и окончание блока после ближайшего '</table:table-row>'
     private function _prepare_row_blocks(&$p_sub_contentXml,$level=0){
-    	// Search all possible rows in the document
-	//этот вариант позоволяет использовать строки внутри строк
-	$len = strlen($p_sub_contentXml);
+	// Search all possible rows in the document
+	//этот вариант позоволяет использовать строки внутри строк 
 	$begin_text = '<table:table-row';
-	$begin_text_len = strlen($begin_text);
 	$end_text = '</table:table-row>';
-	$end_text_len = strlen($end_text);
-	$reg = '#\[!-- BEGIN (row\.[\S]*) --\](.*)\[!-- END \\1 --\]#sm';
-	$reg_sub_begin = '#\[!-- BEGIN (row\.[\S]*) --\]#sm';
 	
-	//my_writeToFile("e:/_db_web/abyssws/htdocs/webclient2/www/temp/debug/file{$level}_start", "wb", $p_sub_contentXml);
-	$last_pos = 0;
-	while(($pos1=strpos($p_sub_contentXml,$begin_text,$last_pos))!==false){
-	    $last_pos = $pos1+1;
-	    $last_pos2 = $last_pos;
+	$i_rep = 0;
+	$matches = 1;
+	$next_offset = 0;
+	while($matches && $i_rep++<100){
+	    preg_match('#(\[!-- BEGIN (row\.[\S]*) --\])(.*)(\[!-- END \\2 --\])#sm',$p_sub_contentXml,$matches,PREG_OFFSET_CAPTURE,$next_offset);
 	    
-	    $update_pos2 = 1;
-	    while(1){
-		$end_pos1 = strpos($p_sub_contentXml,$end_text,$last_pos2);
-		if($end_pos1===false) break;
-		if($update_pos2){
-		    $pos2 = strpos($p_sub_contentXml,$begin_text,$last_pos2);
-		    if($pos2===false) break;
-		    $last_pos2 = $pos2+1;
-		}else{
-		    $last_pos2 = $end_pos1+1;
-		}
-		if( $pos2 < $end_pos1 ){
-		    $last_pos2 = $end_pos1+1;
-		    $str = substr($p_sub_contentXml,$pos2,$end_pos1+$end_text_len-$pos2);
-		    if(preg_match($reg_sub_begin, $str, $matches,PREG_OFFSET_CAPTURE )){
-			$var_name = $matches[1][0];
-			$offset   = $matches[1][1];
-			if(preg_match('#\[!-- END '.$var_name.' --\]#sm', $str, $matches2,PREG_OFFSET_CAPTURE,$offset)){
-			    $strlen_str_before = strlen($str);
-			    $str = $this->_prepare_row_blocks($str,$level+1);
-			    $p_sub_contentXml = substr_replace($p_sub_contentXml,$str,$pos2,$end_pos1+$end_text_len-$pos2);
-			    
-			    $strlen_str_after = strlen($str);
-			    $last_pos2 = $end_pos1+1 + $strlen_str_after-$strlen_str_before;
-			    $update_pos2 = 1;
-			}else{
-			    $update_pos2 = 0;
-			}
-		    }
-		    
-		    continue;
-		}
-		break;
+	    if(!$matches) break;
+	    
+	    my_var_dump_html2("\$matches",$matches);
+
+	    $begin_segment     = $matches[1][0];
+	    $begin_segment_pos = $matches[1][1];
+	    $p_sub_contentXml  = str_replace($begin_segment,"",$p_sub_contentXml);
+	    
+	    
+	    $end_segment      = $matches[4][0];
+	    $end_segment_pos  = $matches[4][1] - strlen($begin_segment);
+	    $p_sub_contentXml = str_replace($end_segment,"",$p_sub_contentXml);
+	    
+	    
+	    $new_begin_segment    = str_ireplace("row.","",$begin_segment);
+	    $new_end_segment      = str_ireplace("row.","",$end_segment);
+	    
+	    $new_pos_end = strpos($p_sub_contentXml,$end_text,$end_segment_pos);
+	    if($new_pos_end===false){
+		throw new OdfException("end row not found! for segment \"$end_segment\"(segment '".$this->getName()."')");
+	    }
+	    $new_pos_end += strlen($end_text);
+	    $p_sub_contentXml = substr_replace($p_sub_contentXml,$new_end_segment,$new_pos_end,0);
+	    
+	    
+	    $subxml = substr($p_sub_contentXml,0,$begin_segment_pos);
+	    $new_pos_begin = strrpos($subxml,$begin_text,0);
+	    if($new_pos_begin===false){
+		my_var_dump_html2("\$subxml len",strlen($subxml));
+		my_var_dump_html2("\$subxml",$subxml);
+		throw new OdfException("begin row not found! for segment \"$begin_segment\" (segment '".$this->getName()."')");
 	    }
 	    
-	    $str = substr($p_sub_contentXml,$pos1,$end_pos1+$end_text_len-$pos1);
-	    if(preg_match($reg, $str, $matches)){
-		$str = str_replace('[!-- BEGIN '.$matches[1].' --]', '', $str);
-		$str = str_replace('[!-- END '.$matches[1].' --]', '', $str);
-		$new_alias = str_replace('row.', '', $matches[1]);
-		$str = '[!-- BEGIN '.$new_alias.' --]' . $str . '[!-- END '.$new_alias.' --]';
-		$p_sub_contentXml = substr_replace($p_sub_contentXml,$str,$pos1,$end_pos1+$end_text_len-$pos1);
-	    }
+	    $p_sub_contentXml = substr_replace($p_sub_contentXml,$new_begin_segment,$new_pos_begin,0);
+	    
+	    my_var_dump_html2("new_segments",array($begin_segment,$new_begin_segment,$end_segment,$new_end_segment));
+	    
+	    $next_offset = $new_pos_begin + 1; //hehe
 	}
-	//my_writeToFile("e:/_db_web/abyssws/htdocs/webclient2/www/temp/debug/file{$level}_end", "wb", $p_sub_contentXml);
 	return $p_sub_contentXml;
     }
     
