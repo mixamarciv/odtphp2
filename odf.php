@@ -172,7 +172,13 @@ class Odf implements /*IteratorAggregate,*/ Countable {
     }
     public function is_hidden(){ return $this->hide; }
     public function hide($need_hide){ $this->hide = $need_hide; }
-
+    public function hideChildren($need_hide){
+	foreach ($this->segments as $seg){
+		$seg->hide($need_hide);
+	}
+    }
+    
+    
     public function __construct($filename_or_block_name, $xml_data=null, $parent=null, $level=null){
 	
 	$this->hide = 0;
@@ -196,6 +202,7 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	    
 	    
 	    $this->_clear_user_vars();
+	    
 	    $this->xml = $this->_prepare_row_blocks($this->xml);
 	    
 	    
@@ -296,23 +303,37 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	$i_rep = 0;
 	$matches = 1;
 	$next_offset = 0;
-	while($matches && $i_rep++<100){
-	    preg_match('#(\[!-- BEGIN (row\.[\S]*) --\])(.*)(\[!-- END \\2 --\])#sm',$p_sub_contentXml,$matches,PREG_OFFSET_CAPTURE,$next_offset);
+	while($matches && $i_rep++<1000){
+	    //ищем объявления строк
+	    $matches = null;
+	    preg_match('#(\[!-- BEGIN (row\.[\S]*) --\])(.*?)(\[!-- END \\2 --\])#sm',$p_sub_contentXml,$matches,PREG_OFFSET_CAPTURE,$next_offset);
 	    
-	    if(!$matches) break;
+	    if(!$matches){
+		break;
+	    }
 	    
 	    //my_var_dump_html2("\$matches",$matches);
-
+	    
+	    //удаляем объявления строк (только один раз!)
 	    $begin_segment     = $matches[1][0];
 	    $begin_segment_pos = $matches[1][1];
-	    $p_sub_contentXml  = str_replace($begin_segment,"",$p_sub_contentXml);
-	    
+	    //$p_sub_contentXml  = str_replace($begin_segment,"",$p_sub_contentXml);
+	    $re_begin_segment  = "#".$begin_segment."#";
+	    $re_begin_segment  = str_replace('[','\[',$re_begin_segment);
+	    $re_begin_segment  = str_replace('.','\.',$re_begin_segment);
+	    $p_sub_contentXml  = preg_replace($re_begin_segment, "",$p_sub_contentXml, 1);
+
 	    
 	    $end_segment      = $matches[4][0];
 	    $end_segment_pos  = $matches[4][1] - strlen($begin_segment);
-	    $p_sub_contentXml = str_replace($end_segment,"",$p_sub_contentXml);
+	    //$p_sub_contentXml = str_replace($end_segment,"",$p_sub_contentXml,1);
+	    $re_end_segment   = "#".$end_segment."#";
+	    $re_end_segment   = str_replace('[','\[',$re_end_segment);
+	    $re_end_segment   = str_replace('.','\.',$re_end_segment);
+	    $p_sub_contentXml = preg_replace($re_end_segment, "",$p_sub_contentXml, 1);
 	    
 	    
+	    //переименовываем объявления строк в обычные блоки
 	    $new_begin_segment    = str_ireplace("row.","",$begin_segment);
 	    $new_end_segment      = str_ireplace("row.","",$end_segment);
 	    
@@ -338,6 +359,8 @@ class Odf implements /*IteratorAggregate,*/ Countable {
 	    
 	    $next_offset = $new_pos_begin + 1; //hehe
 	}
+	//if($i_rep==1)
+	//echo "<b>$i_rep rows in segment ".$this->segment_name." </b>";
 	return $p_sub_contentXml;
     }
     
